@@ -5,6 +5,8 @@ package email
 import (
 	"fmt"
 	"net/smtp"
+
+	"traindesk/internal/config"
 )
 
 type SMTPConfig struct {
@@ -19,7 +21,15 @@ type Sender struct {
 	cfg SMTPConfig
 }
 
-func NewSender(cfg SMTPConfig) *Sender {
+func NewSender() *Sender {
+	SMTPcfg := config.LoadSMTP()
+	cfg := SMTPConfig{
+		Host:     SMTPcfg.Host,
+		Port:     SMTPcfg.Port,
+		Username: SMTPcfg.Username,
+		Password: SMTPcfg.Password,
+		From:     SMTPcfg.From,
+	}
 	return &Sender{cfg: cfg}
 }
 

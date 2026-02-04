@@ -2,7 +2,7 @@ package app
 
 import (
 	"crypto/rand"
-	"encoding/hex"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -10,22 +10,26 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
+	"traindesk/internal/config"
 	"traindesk/internal/user"
 )
 
-// Секрет и время жизни токена (ТЗ: не более 7 дней).
-// TODO поменять на ключ из .env
-var jwtSecret = []byte("very-secret-key")
+var cfg = config.Load()
+var jwtSecret = []byte(cfg.JWTSecret)
 
 const jwtTTL = 7 * 24 * time.Hour
 
 // generateVerifyCode генерирует короткий код подтверждения почты.
-func generateVerifyCode() (string, error) {
-	b := make([]byte, 4) // 8 hex-символов
-	if _, err := rand.Read(b); err != nil {
+func generateVerificationCode() (string, error) {
+	// 0..999999
+	var b [3]byte
+	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(b), nil
+	// используем первые 3 байта как число
+	n := int(b[0])<<16 | int(b[1])<<8 | int(b[2])
+	code := n % 1000000
+	return fmt.Sprintf("%06d", code), nil // всегда 6 цифр, с лидирующими нулями
 }
 
 // handleRegister — регистрация пользователя.
@@ -53,7 +57,7 @@ func (a *App) handleRegister(c *gin.Context) {
 	}
 
 	// Генерируем код подтверждения почты.
-	code, err := generateVerifyCode()
+	code, err := generateVerificationCode()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate verify code"})
 		return
@@ -64,8 +68,14 @@ func (a *App) handleRegister(c *gin.Context) {
 		PasswordHash:  string(hash),
 		TrainerName:   req.TrainerName,
 		EmailVerified: false,
-		VerifyCode:    code,
 	}
+
+	verification := user.EmailVerification{
+		UserID:    u.ID,
+		Code:      code,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	a.db.Create(&verification)
 
 	if err := a.db.Create(&u).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -75,7 +85,6 @@ func (a *App) handleRegister(c *gin.Context) {
 		return
 	}
 
-	// В учебной версии возвращаем код в ответе, чтобы можно было подтвердить без e‑mail.
 	resp := user.RegisterResponse{
 		ID:          u.ID.String(),
 		Email:       u.Email,
@@ -105,12 +114,10 @@ func (a *App) handleLogin(c *gin.Context) {
 		return
 	}
 
-	// TODO: блок для верификации, закомментирован на время тестирования и разработки.
-	// Не пускаем, если почта не подтверждена.
-	// if !u.EmailVerified {
-	//	c.JSON(http.StatusUnauthorized, gin.H{"error": "email is not verified"})
-	//	return
-	// }
+	if !u.EmailVerified {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "email is not verified"})
+		return
+	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
@@ -144,40 +151,34 @@ func (a *App) handleLogin(c *gin.Context) {
 // handleVerifyEmail — подтверждение e‑mail по коду.
 func (a *App) handleVerifyEmail(c *gin.Context) {
 	var req user.VerifyEmailRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-
-	if req.Email == "" || req.Code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email and code are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
 
 	var u user.User
 	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user not found"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_not_found"})
 		return
 	}
 
-	if u.EmailVerified {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email already verified"})
+	var v user.EmailVerification
+	if err := a.db.Where("user_id = ? AND code = ?", u.ID, req.Code).First(&v).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_code"})
 		return
 	}
 
-	if u.VerifyCode != req.Code {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid verification code"})
+	if time.Now().After(v.ExpiresAt) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "code_expired"})
 		return
 	}
 
-	u.EmailVerified = true
-	u.VerifyCode = ""
-
-	if err := a.db.Save(&u).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+	if err := a.db.Model(&u).Update("email_verified", true).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed_to_verify"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": "email verified"})
+	a.db.Delete(&v)
+
+	c.JSON(http.StatusOK, gin.H{"message": "email_verified"})
 }

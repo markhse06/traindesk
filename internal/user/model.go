@@ -13,9 +13,15 @@ type User struct {
 	PasswordHash string    `gorm:"not null"`
 	TrainerName  string    `gorm:"not null"`
 
-	EmailVerified bool   `gorm:"not null;default:false"`
-	VerifyCode    string `gorm:"size:64"` // одноразовый код подтверждения
+	EmailVerified bool `gorm:"not null;default:false"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type EmailVerification struct {
+	ID        uuid.UUID `gorm:"primaryKey"`
+	UserID    uuid.UUID `gorm:"index"`
+	Code      string    `gorm:"size:6;index"`
+	ExpiresAt time.Time
 }

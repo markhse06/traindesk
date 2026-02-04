@@ -8,25 +8,31 @@ import (
 	"gorm.io/gorm"
 
 	"traindesk/internal/client"
+	"traindesk/internal/config"
 	"traindesk/internal/user"
 	"traindesk/internal/workout"
 )
+
+var cfg = config.Load()
 
 type DB struct {
 	*gorm.DB
 }
 
 func NewDB() (*DB, error) {
-	host := "localhost"
-	port := 5432
-	userDB := "postgres"
-	password := "postgres"
-	dbname := "traindesk"
-
 	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, userDB, password, dbname,
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName,
 	)
+
+	log.Println("DB CONFIG:",
+		"host=", cfg.DBHost,
+		"port=", cfg.DBPort,
+		"user=", cfg.DBUser,
+		"db=", cfg.DBName,
+	)
+
+	log.Println("DSN:", dsn)
 
 	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -48,5 +54,6 @@ func autoMigrate(gormDB *gorm.DB) error {
 		&client.Client{},
 		&workout.Workout{},
 		&workout.WorkoutClient{},
+		&user.EmailVerification{},
 	)
 }
