@@ -19,11 +19,8 @@ type Config struct {
 }
 
 type SMTPConfig struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
+	API    string
+	Sender string
 }
 
 func Load() Config {
@@ -56,11 +53,8 @@ func LoadSMTP() SMTPConfig {
 	}
 
 	SMTPcfg := SMTPConfig{
-		Host:     os.Getenv("SMTP_HOST"),
-		Port:     os.Getenv("SMTP_PORT"),
-		Username: os.Getenv("SMTP_USERNAME"),
-		Password: os.Getenv("SMTP_PASSWORD"),
-		From:     os.Getenv("SMTP_FROM_ADDRESS"),
+		API:    os.Getenv("SMTP_API"),
+		Sender: os.Getenv("EMAIL_SENDER"),
 	}
 
 	return SMTPcfg

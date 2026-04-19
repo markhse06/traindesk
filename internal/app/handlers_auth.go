@@ -182,3 +182,47 @@ func (a *App) handleVerifyEmail(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "email_verified"})
 }
+
+func (a *App) handleChangePassword(c *gin.Context) {
+	var req user.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+
+	var u user.User
+	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_not_found"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.OldPassword)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_password"})
+		return
+	}
+
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 10)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	a.db.Model(&u).Update("password_hash", string(newPasswordHash))
+
+	c.JSON(http.StatusOK, gin.H{"message": "password_changed"})
+}
+
+func (a *App) handleResetPassword(c *gin.Context) {
+	var req user.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+
+	var u user.User
+	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_not_found"})
+		return
+	}
+	// TODO: дописать хендл сброса пароля.
+}

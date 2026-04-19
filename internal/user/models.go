@@ -1,7 +1,5 @@
 package user
 
-// Если здесь уже есть User — оставь его в model.go, а тут только DTO.
-
 // RegisterRequest описывает тело запроса для регистрации.
 type RegisterRequest struct {
 	Email       string `json:"email"`
@@ -30,7 +28,32 @@ type LoginResponse struct {
 	TrainerName string `json:"trainer_name"`
 }
 
+// VerifyEmailRequest описывает тело запроса подтверждения почты.
 type VerifyEmailRequest struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
+}
+
+// ChangePasswordRequest тело запроса смены пароля.
+type ChangePasswordRequest struct {
+	Email       string `json:"email"`
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+// ChangePasswordResponse ответ на запрос изменения пароля.
+type ChangePasswordResponse struct {
+	Email     string `json:"email"`
+	IsChanged bool   `json:"is_changed"`
+}
+
+// Сброс пароля
+type ResetPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordByCodeRequest struct {
+	Email       string `json:"email"`
+	Code        string `json:"code"`
+	NewPassword string `json:"new_password"`
 }
