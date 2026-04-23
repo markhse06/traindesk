@@ -4,17 +4,16 @@ package email
 
 import (
 	"fmt"
-	"net/smtp"
+	"io"
+	"net/http"
+	"strings"
 
 	"traindesk/internal/config"
 )
 
 type SMTPConfig struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
+	API    string
+	Sender string
 }
 
 type Sender struct {
@@ -24,30 +23,34 @@ type Sender struct {
 func NewSender() *Sender {
 	SMTPcfg := config.LoadSMTP()
 	cfg := SMTPConfig{
-		Host:     SMTPcfg.Host,
-		Port:     SMTPcfg.Port,
-		Username: SMTPcfg.Username,
-		Password: SMTPcfg.Password,
-		From:     SMTPcfg.From,
+		API:    SMTPcfg.API,
+		Sender: SMTPcfg.Sender,
 	}
 	return &Sender{cfg: cfg}
 }
 
+// SendEmail Универсальный метод для отправки любого письма.
+func (s *Sender) SendEmail(from string, to string, subject string, body string) error {
+	url := "https://api.smtp2go.com/v3/email/send"
+
+	payload := strings.NewReader("{\"to\":[\"Спуфер Матерей <alanraiskii@edu.hse.ru>\"],\"sender\":\"Dolbayeb <piska@markhse.ru>\",\"subject\":\"Piska\",\"html_body\":\"<h1>Спуфни Владимира Ваганова по братски</h1>\",\"fastaccept\":false}")
+
+	req, _ := http.NewRequest("POST", url, payload)
+
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("X-Smtp2go-Api-Key", "api-FBBFD637A92C423E980D0148EB9C814E")
+
+	res, _ := http.DefaultClient.Do(req)
+
+	// TODO
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+
+	fmt.Println(string(body))
+
+	return nil
+}
 func (s *Sender) SendVerificationEmail(toEmail, code string) error {
-	// Простейшее текстовое письмо.
-	subject := "TrainDesk: подтверждение почты"
-	body := fmt.Sprintf("Ваш код подтверждения: %s", code)
 
-	msg := []byte(
-		"To: " + toEmail + "\r\n" +
-			"Subject: " + subject + "\r\n" +
-			"\r\n" +
-			body + "\r\n",
-	)
-
-	addr := s.cfg.Host + ":" + s.cfg.Port
-
-	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
-
-	return smtp.SendMail(addr, auth, s.cfg.From, []string{toEmail}, msg)
 }

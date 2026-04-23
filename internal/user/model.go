@@ -15,7 +15,7 @@ type User struct {
 
 	EmailVerified bool `gorm:"not null;default:false"`
 
-	CreatedAt time.Time
+	CreatedAt time.Time `gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
 	UpdatedAt time.Time
 }
 
