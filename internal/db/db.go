@@ -3,14 +3,12 @@ package db
 import (
 	"fmt"
 	"log"
+	"traindesk/internal/domain"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"traindesk/internal/client"
 	"traindesk/internal/config"
-	"traindesk/internal/user"
-	"traindesk/internal/workout"
 )
 
 var cfg = config.Load()
@@ -49,11 +47,13 @@ func NewDB() (*DB, error) {
 }
 
 func autoMigrate(gormDB *gorm.DB) error {
+	gormDB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";")
+
 	return gormDB.AutoMigrate(
-		&user.User{},
-		&client.Client{},
-		&workout.Workout{},
-		&workout.WorkoutClient{},
-		&user.EmailVerification{},
+		&domain.User{},
+		&domain.Client{},
+		&domain.Workout{},
+		&domain.WorkoutClient{},
+		&domain.EmailVerification{},
 	)
 }

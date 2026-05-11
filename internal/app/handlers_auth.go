@@ -8,9 +8,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"traindesk/internal/config"
+	"traindesk/internal/domain"
 	"traindesk/internal/user"
 )
 
@@ -63,19 +65,12 @@ func (a *App) handleRegister(c *gin.Context) {
 		return
 	}
 
-	u := user.User{
+	u := domain.User{
 		Email:         req.Email,
 		PasswordHash:  string(hash),
 		TrainerName:   req.TrainerName,
 		EmailVerified: false,
 	}
-
-	verification := user.EmailVerification{
-		UserID:    u.ID,
-		Code:      code,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-	}
-	a.db.Create(&verification)
 
 	if err := a.db.Create(&u).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -84,6 +79,22 @@ func (a *App) handleRegister(c *gin.Context) {
 		})
 		return
 	}
+
+	verification := domain.EmailVerification{
+		UserID:    u.ID,
+		Code:      code,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+
+	if err := a.mailer.SendEmailVerificationCode(code, req.TrainerName, req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to send email verification code",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	a.db.Create(&verification)
 
 	resp := user.RegisterResponse{
 		ID:          u.ID.String(),
@@ -108,7 +119,7 @@ func (a *App) handleLogin(c *gin.Context) {
 		return
 	}
 
-	var u user.User
+	var u domain.User
 	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
@@ -156,13 +167,13 @@ func (a *App) handleVerifyEmail(c *gin.Context) {
 		return
 	}
 
-	var u user.User
+	var u domain.User
 	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_not_found"})
 		return
 	}
 
-	var v user.EmailVerification
+	var v domain.EmailVerification
 	if err := a.db.Where("user_id = ? AND code = ?", u.ID, req.Code).First(&v).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_code"})
 		return
@@ -183,46 +194,114 @@ func (a *App) handleVerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "email_verified"})
 }
 
+// handleChangePassword — метод для изменения пароля
 func (a *App) handleChangePassword(c *gin.Context) {
+	userIDStr := c.MustGet("user_id").(string)
+	userID, _ := uuid.Parse(userIDStr)
+
 	var req user.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
 
-	var u user.User
-	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_not_found"})
+	var u domain.User
+	if err := a.db.First(&u, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 		return
 	}
 
+	// Проверяем старый пароль
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.OldPassword)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_password"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_old_password"})
 		return
 	}
 
-	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 10)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
-		return
-	}
-
-	a.db.Model(&u).Update("password_hash", string(newPasswordHash))
+	// Хешируем новый
+	newHash, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 10)
+	a.db.Model(&u).Update("password_hash", string(newHash))
 
 	c.JSON(http.StatusOK, gin.H{"message": "password_changed"})
 }
 
-func (a *App) handleResetPassword(c *gin.Context) {
-	var req user.ResetPasswordRequest
+func (a *App) handleForgotPassword(c *gin.Context) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	var u domain.User
+	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
+		// Отвечаем 200, чтобы не "палить" наличие email в базе
+		c.JSON(http.StatusOK, gin.H{"message": "if email exists, reset code sent"})
+		return
+	}
+
+	code, _ := generateVerificationCode()
+
+	// Сохраняем код в таблицу верификации
+	reset := domain.EmailVerification{
+		UserID:    u.ID,
+		Code:      code,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+	a.db.Create(&reset)
+
+	var name string
+	a.db.Raw("SELECT trainer_name FROM users WHERE id = ?", reset.UserID).Scan(&name)
+
+	go a.mailer.SendEmailVerificationCode(code, req.Email, name)
+
+	c.JSON(http.StatusOK, gin.H{"message": "reset_code_sent"})
+}
+
+func (a *App) handleResetPasswordConfirm(c *gin.Context) {
+	var req user.ResetPasswordConfirmRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
 
-	var u user.User
+	var u domain.User
 	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user_not_found"})
 		return
 	}
-	// TODO: дописать хендл сброса пароля.
+
+	var v domain.EmailVerification
+	if err := a.db.Where("user_id = ? AND code = ?", u.ID, req.Code).First(&v).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_code"})
+		return
+	}
+
+	if time.Now().After(v.ExpiresAt) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "code_expired"})
+		return
+	}
+
+	newHash, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), 10)
+	a.db.Model(&u).Update("password_hash", string(newHash))
+
+	a.db.Delete(&v)
+
+	c.JSON(http.StatusOK, gin.H{"message": "password_reset_success"})
+}
+
+func (a *App) handleGetProfile(c *gin.Context) {
+	userID := c.MustGet("user_id").(string)
+
+	var u domain.User
+	if err := a.db.First(&u, "id = ?", userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":           u.ID,
+		"email":        u.Email,
+		"trainer_name": u.TrainerName,
+	})
 }

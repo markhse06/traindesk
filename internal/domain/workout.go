@@ -1,4 +1,4 @@
-package workout
+package domain
 
 import (
 	"time"
@@ -38,16 +38,18 @@ func IsValidType(t string) bool {
 
 // Workout — сущность тренировки в БД.
 type Workout struct {
-	ID     uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	UserID uuid.UUID `gorm:"type:uuid;not null;index"`
+	ID      uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	UserID  uuid.UUID `gorm:"type:uuid;not null;index"`
+	Clients []Client  `gorm:"many2many:workout_clients;constraint:OnDelete:CASCADE"`
 
-	Date        time.Time   `gorm:"not null"`
+	Date        time.Time   `gorm:"type:timestamptz;not null"`
 	DurationMin int         `gorm:"not null"`
 	Type        WorkoutType `gorm:"type:varchar(32);not null"`
 	Notes       string      `gorm:"type:text"`
+	Price       float64     `gorm:"type:decimal(10,2);not null;default:0" json:"price"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `gorm:"type:timestamptz;default:now();not null"`
+	UpdatedAt time.Time `gorm:"type:timestamptz;default:now();not null"`
 }
 
 // WorkoutClient — связь многие-ко-многим между тренировками и клиентами.

@@ -13,11 +13,20 @@ func (a *App) registerRoutes() {
 
 	api := a.router.Group("/api/v1")
 	{
-		auth := api.Group("/auth")
+		auth := api.Group("/user")
 		{
 			auth.POST("/register", a.handleRegister)
 			auth.POST("/login", a.handleLogin)
 			auth.POST("/verify-email", a.handleVerifyEmail)
+			auth.POST("/forgot-password", a.handleForgotPassword)
+			auth.POST("/reset-password", a.handleResetPasswordConfirm)
+
+			// Защищенные роуты профиля
+			profile := auth.Group("/profile", a.AuthMiddleware())
+			{
+				profile.GET("", a.handleGetProfile)
+				profile.POST("/change-password", a.handleChangePassword)
+			}
 		}
 
 		workouts := api.Group("/workouts", a.AuthMiddleware())

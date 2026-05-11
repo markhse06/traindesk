@@ -3,8 +3,6 @@ package config
 import (
 	"log"
 	"os"
-
-	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -24,10 +22,11 @@ type SMTPConfig struct {
 }
 
 func Load() Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	// Debug mode
+	//err := godotenv.Load("../../.env.test")
+	//if err != nil {
+	//	log.Fatal("Error loading .env file")
+	//}
 
 	cfg := Config{
 		DBHost:     os.Getenv("DB_HOST"),
@@ -47,15 +46,18 @@ func Load() Config {
 }
 
 func LoadSMTP() SMTPConfig {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	// Debug mode
+	//err := godotenv.Load("../../.env.test")
+	//if err != nil {
+	//	log.Fatal("Error loading .env file")
+	//}
 
 	SMTPcfg := SMTPConfig{
-		API:    os.Getenv("EMAIL_API"),
+		API:    os.Getenv("SMTP_API"),
 		Sender: os.Getenv("EMAIL_SENDER"),
 	}
+
+	log.Println(SMTPcfg.API)
 
 	return SMTPcfg
 }

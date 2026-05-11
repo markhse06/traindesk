@@ -41,18 +41,13 @@ type ChangePasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
-// ChangePasswordResponse ответ на запрос изменения пароля.
-type ChangePasswordResponse struct {
-	Email     string `json:"email"`
-	IsChanged bool   `json:"is_changed"`
-}
-
-// Сброс пароля
+// ResetPasswordRequest Сброс пароля.
 type ResetPasswordRequest struct {
 	Email string `json:"email"`
 }
 
-type ResetPasswordByCodeRequest struct {
+// ResetPasswordConfirmRequest — подтверждение почты кодом подтверждения для сброса пароля
+type ResetPasswordConfirmRequest struct {
 	Email       string `json:"email"`
 	Code        string `json:"code"`
 	NewPassword string `json:"new_password"`

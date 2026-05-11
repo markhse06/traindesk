@@ -3,12 +3,12 @@ package app
 import (
 	"net/http"
 	"time"
+	"traindesk/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"traindesk/internal/client"
 	"traindesk/internal/workout"
 )
 
@@ -45,10 +45,10 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		return
 	}
 
-	if !workout.IsValidType(req.Type) {
+	if !domain.IsValidType(req.Type) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":         "invalid workout type",
-			"allowed_types": workout.ValidWorkoutTypes,
+			"allowed_types": domain.ValidWorkoutTypes,
 		})
 		return
 	}
@@ -75,7 +75,7 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 	if len(clientUUIDs) > 0 {
 		var cnt int64
 		if err := a.db.
-			Model(&client.Client{}).
+			Model(&domain.Client{}).
 			Where("user_id = ? AND id IN ?", userID, clientUUIDs).
 			Count(&cnt).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate clients"})
@@ -89,12 +89,12 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		}
 	}
 
-	w := workout.Workout{
+	w := domain.Workout{
 		ID:          uuid.New(),
 		UserID:      userID,
 		Date:        date,
 		DurationMin: req.DurationMin,
-		Type:        workout.WorkoutType(req.Type),
+		Type:        domain.WorkoutType(req.Type),
 		Notes:       req.Notes,
 	}
 
@@ -104,9 +104,9 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		}
 
 		if len(clientUUIDs) > 0 {
-			links := make([]workout.WorkoutClient, 0, len(clientUUIDs))
+			links := make([]domain.WorkoutClient, 0, len(clientUUIDs))
 			for _, cid := range clientUUIDs {
-				links = append(links, workout.WorkoutClient{
+				links = append(links, domain.WorkoutClient{
 					WorkoutID: w.ID,
 					ClientID:  cid,
 				})
@@ -155,7 +155,7 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 		return
 	}
 
-	var workoutsDB []workout.Workout
+	var workoutsDB []domain.Workout
 	if err := a.db.Where("user_id = ?", userID).Order("date desc").Find(&workoutsDB).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workouts"})
 		return
@@ -168,7 +168,7 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 
 	linksMap := make(map[uuid.UUID][]string)
 	if len(workoutIDs) > 0 {
-		var links []workout.WorkoutClient
+		var links []domain.WorkoutClient
 		if err := a.db.Where("workout_id IN ?", workoutIDs).Find(&links).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workout clients"})
 			return
@@ -218,7 +218,7 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 		return
 	}
 
-	var w workout.Workout
+	var w domain.Workout
 	if err := a.db.Where("id = ? AND user_id = ?", workoutID, userID).First(&w).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "workout not found"})
@@ -229,7 +229,7 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 	}
 
 	// Подтягиваем связанных клиентов.
-	var links []workout.WorkoutClient
+	var links []domain.WorkoutClient
 	if err := a.db.Where("workout_id = ?", w.ID).Find(&links).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workout clients"})
 		return
@@ -276,7 +276,7 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		return
 	}
 
-	var existing workout.Workout
+	var existing domain.Workout
 	if err := a.db.Where("id = ? AND user_id = ?", workoutID, userID).First(&existing).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "workout not found"})
@@ -299,10 +299,10 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		return
 	}
 
-	if !workout.IsValidType(req.Type) {
+	if !domain.IsValidType(req.Type) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":         "invalid workout type",
-			"allowed_types": workout.ValidWorkoutTypes,
+			"allowed_types": domain.ValidWorkoutTypes,
 		})
 		return
 	}
@@ -329,7 +329,7 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 	if len(clientUUIDs) > 0 {
 		var cnt int64
 		if err := a.db.
-			Model(&client.Client{}).
+			Model(&domain.Client{}).
 			Where("user_id = ? AND id IN ?", userID, clientUUIDs).
 			Count(&cnt).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate clients"})
@@ -345,7 +345,7 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 
 	existing.Date = date
 	existing.DurationMin = req.DurationMin
-	existing.Type = workout.WorkoutType(req.Type)
+	existing.Type = domain.WorkoutType(req.Type)
 	existing.Notes = req.Notes
 
 	err = a.db.Transaction(func(tx *gorm.DB) error {
@@ -354,15 +354,15 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		}
 
 		// Сначала удаляем старые связи.
-		if err := tx.Where("workout_id = ?", existing.ID).Delete(&workout.WorkoutClient{}).Error; err != nil {
+		if err := tx.Where("workout_id = ?", existing.ID).Delete(&domain.WorkoutClient{}).Error; err != nil {
 			return err
 		}
 
 		// Затем добавляем новые связи.
 		if len(clientUUIDs) > 0 {
-			links := make([]workout.WorkoutClient, 0, len(clientUUIDs))
+			links := make([]domain.WorkoutClient, 0, len(clientUUIDs))
 			for _, cid := range clientUUIDs {
-				links = append(links, workout.WorkoutClient{
+				links = append(links, domain.WorkoutClient{
 					WorkoutID: existing.ID,
 					ClientID:  cid,
 				})
@@ -416,7 +416,7 @@ func (a *App) handleDeleteWorkout(c *gin.Context) {
 	}
 
 	// Проверяем, что тренировка принадлежит пользователю.
-	var w workout.Workout
+	var w domain.Workout
 	if err := a.db.Where("id = ? AND user_id = ?", workoutID, userID).First(&w).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "workout not found"})
@@ -427,7 +427,7 @@ func (a *App) handleDeleteWorkout(c *gin.Context) {
 	}
 
 	err = a.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("workout_id = ?", w.ID).Delete(&workout.WorkoutClient{}).Error; err != nil {
+		if err := tx.Where("workout_id = ?", w.ID).Delete(&domain.WorkoutClient{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Delete(&w).Error; err != nil {

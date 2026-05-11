@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"traindesk/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -42,7 +43,7 @@ func (a *App) handleCreateClient(c *gin.Context) {
 		return
 	}
 
-	cl := client.Client{
+	cl := domain.Client{
 		ID:        uuid.New(),
 		UserID:    userID,
 		FirstName: req.FirstName,
@@ -83,7 +84,7 @@ func (a *App) handleGetClients(c *gin.Context) {
 		return
 	}
 
-	var clientsDB []client.Client
+	var clientsDB []domain.Client
 	if err := a.db.Where("user_id = ?", userID).Order("last_name, first_name").Find(&clientsDB).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load clients"})
 		return
