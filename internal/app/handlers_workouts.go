@@ -12,6 +12,17 @@ import (
 )
 
 // handleCreateWorkout — создать тренировку (индивидуальную или групповую).
+// @Summary Create workout
+// @Tags workouts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body DTO.CreateWorkoutRequest true "Workout data"
+// @Success 201 {object} DTO.WorkoutResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/workouts [post]
 func (a *App) handleCreateWorkout(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {
@@ -135,6 +146,14 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 }
 
 // handleGetWorkouts — список тренировок текущего тренера с client_ids.
+// @Summary List workouts
+// @Tags workouts
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} DTO.WorkoutResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/workouts [get]
 func (a *App) handleGetWorkouts(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {
@@ -193,6 +212,17 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary Get workout
+// @Tags workouts
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Workout ID"
+// @Success 200 {object} DTO.WorkoutResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 404 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/workouts/{id} [get]
 func (a *App) handleGetWorkoutByID(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {
@@ -251,6 +281,19 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary Update workout
+// @Tags workouts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Workout ID"
+// @Param request body DTO.CreateWorkoutRequest true "Workout data"
+// @Success 200 {object} DTO.WorkoutResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 404 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/workouts/{id} [put]
 func (a *App) handleUpdateWorkout(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {
@@ -390,6 +433,16 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary Delete workout
+// @Tags workouts
+// @Security BearerAuth
+// @Param id path string true "Workout ID"
+// @Success 204
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 404 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/workouts/{id} [delete]
 func (a *App) handleDeleteWorkout(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {

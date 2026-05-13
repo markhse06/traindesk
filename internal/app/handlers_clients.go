@@ -10,6 +10,17 @@ import (
 )
 
 // handleCreateClient — создать нового клиента тренера.
+// @Summary Create client
+// @Tags clients
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body DTO.CreateClientRequest true "Client data"
+// @Success 201 {object} DTO.ClientResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/clients [post]
 func (a *App) handleCreateClient(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {
@@ -64,6 +75,14 @@ func (a *App) handleCreateClient(c *gin.Context) {
 }
 
 // handleGetClients — список клиентов текущего тренера.
+// @Summary List clients
+// @Tags clients
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} DTO.ClientResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/clients [get]
 func (a *App) handleGetClients(c *gin.Context) {
 	userIDVal, ok := c.Get("user_id")
 	if !ok {

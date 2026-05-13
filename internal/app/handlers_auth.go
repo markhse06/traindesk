@@ -44,6 +44,15 @@ func secureRandomString(length int) string {
 }
 
 // handleRegister — регистрация пользователя.
+// @Summary Register user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body DTO.RegisterRequest true "Registration data"
+// @Success 201 {object} DTO.RegisterResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/user/register [post]
 func (a *App) handleRegister(c *gin.Context) {
 	var req DTO.RegisterRequest
 
@@ -116,6 +125,16 @@ func (a *App) handleRegister(c *gin.Context) {
 }
 
 // handleLogin — логин пользователя с проверкой пароля и статуса e‑mail.
+// @Summary Login user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body DTO.LoginRequest true "Login data"
+// @Success 200 {object} DTO.LoginResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/user/login [post]
 func (a *App) handleLogin(c *gin.Context) {
 	var req DTO.LoginRequest
 
@@ -184,6 +203,15 @@ func (a *App) handleLogin(c *gin.Context) {
 }
 
 // handleVerifyEmail — подтверждение e‑mail по коду.
+// @Summary Verify email
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body DTO.VerifyEmailRequest true "Verification data"
+// @Success 200 {object} DTO.MessageResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/user/verify-email [post]
 func (a *App) handleVerifyEmail(c *gin.Context) {
 	var req DTO.VerifyEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -219,6 +247,17 @@ func (a *App) handleVerifyEmail(c *gin.Context) {
 }
 
 // handleChangePassword — метод для изменения пароля
+// @Summary Change password
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body DTO.ChangePasswordRequest true "Password change data"
+// @Success 200 {object} DTO.MessageResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 404 {object} DTO.ErrorResponse
+// @Router /api/v1/user/profile/change-password [post]
 func (a *App) handleChangePassword(c *gin.Context) {
 	userIDStr := c.MustGet("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
@@ -248,6 +287,16 @@ func (a *App) handleChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password_changed"})
 }
 
+// @Summary Request password reset
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body DTO.ResetPasswordRequest true "Password reset request"
+// @Success 200 {object} DTO.MessageResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 404 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/user/forgot-password [post]
 func (a *App) handleForgotPassword(c *gin.Context) {
 	var req struct {
 		Email string `json:"email"`
@@ -284,6 +333,14 @@ func (a *App) handleForgotPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "reset code sent"})
 }
 
+// @Summary Confirm password reset
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body DTO.ResetPasswordConfirmRequest true "Password reset confirmation"
+// @Success 200 {object} DTO.MessageResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Router /api/v1/user/reset-password [post]
 func (a *App) handleResetPasswordConfirm(c *gin.Context) {
 	var req DTO.ResetPasswordConfirmRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -316,6 +373,14 @@ func (a *App) handleResetPasswordConfirm(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password_reset_success"})
 }
 
+// @Summary Get profile
+// @Tags user
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} DTO.ProfileResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 404 {object} DTO.ErrorResponse
+// @Router /api/v1/user/profile [get]
 func (a *App) handleGetProfile(c *gin.Context) {
 	userID := c.MustGet("user_id").(string)
 
@@ -332,6 +397,16 @@ func (a *App) handleGetProfile(c *gin.Context) {
 	})
 }
 
+// @Summary Refresh tokens
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body DTO.RefreshRequest true "Refresh token"
+// @Success 200 {object} DTO.TokenPairResponse
+// @Failure 400 {object} DTO.ErrorResponse
+// @Failure 401 {object} DTO.ErrorResponse
+// @Failure 500 {object} DTO.ErrorResponse
+// @Router /api/v1/user/refresh [post]
 func (a *App) handleRefresh(c *gin.Context) {
 	var req DTO.RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
