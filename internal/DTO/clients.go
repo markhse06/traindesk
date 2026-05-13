@@ -1,4 +1,4 @@
-package client
+package DTO
 
 // CreateClientRequest — тело запроса для создания клиента.
 type CreateClientRequest struct {

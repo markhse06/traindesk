@@ -1,3 +1,5 @@
-*.env
 sum.go
 .idea
+.env
+.env.test
+go.sum

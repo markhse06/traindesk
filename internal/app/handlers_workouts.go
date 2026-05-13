@@ -3,13 +3,12 @@ package app
 import (
 	"net/http"
 	"time"
+	"traindesk/internal/DTO"
 	"traindesk/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-
-	"traindesk/internal/workout"
 )
 
 // handleCreateWorkout — создать тренировку (индивидуальную или групповую).
@@ -32,7 +31,7 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		return
 	}
 
-	var req workout.CreateWorkoutRequest
+	var req DTO.CreateWorkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
@@ -123,7 +122,7 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		return
 	}
 
-	resp := workout.WorkoutResponse{
+	resp := DTO.WorkoutResponse{
 		ID:          w.ID.String(),
 		Date:        w.Date.Format("2006-01-02"),
 		DurationMin: w.DurationMin,
@@ -179,9 +178,9 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 		}
 	}
 
-	resp := make([]workout.WorkoutResponse, 0, len(workoutsDB))
+	resp := make([]DTO.WorkoutResponse, 0, len(workoutsDB))
 	for _, w := range workoutsDB {
-		resp = append(resp, workout.WorkoutResponse{
+		resp = append(resp, DTO.WorkoutResponse{
 			ID:          w.ID.String(),
 			Date:        w.Date.Format("2006-01-02"),
 			DurationMin: w.DurationMin,
@@ -240,7 +239,7 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 		clientIDs = append(clientIDs, l.ClientID.String())
 	}
 
-	resp := workout.WorkoutResponse{
+	resp := DTO.WorkoutResponse{
 		ID:          w.ID.String(),
 		Date:        w.Date.Format("2006-01-02"),
 		DurationMin: w.DurationMin,
@@ -286,7 +285,7 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		return
 	}
 
-	var req workout.CreateWorkoutRequest
+	var req DTO.CreateWorkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
@@ -379,7 +378,7 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		return
 	}
 
-	resp := workout.WorkoutResponse{
+	resp := DTO.WorkoutResponse{
 		ID:          existing.ID.String(),
 		Date:        existing.Date.Format("2006-01-02"),
 		DurationMin: existing.DurationMin,

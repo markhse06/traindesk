@@ -1,4 +1,4 @@
-package workout
+package DTO
 
 // CreateWorkoutRequest — тело запроса при создании тренировки.
 type CreateWorkoutRequest struct {

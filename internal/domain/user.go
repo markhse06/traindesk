@@ -20,8 +20,9 @@ type User struct {
 }
 
 type EmailVerification struct {
-	ID        uuid.UUID `gorm:"primaryKey"`
-	UserID    uuid.UUID `gorm:"index"`
+	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	UserID    uuid.UUID `gorm:"type:uuid"`
 	Code      string    `gorm:"size:6;index"`
-	ExpiresAt time.Time
+	CreatedAt time.Time `gorm:"type:timestamptz;default:now()"`
+	ExpiresAt time.Time `gorm:"type:timestamptz"`
 }

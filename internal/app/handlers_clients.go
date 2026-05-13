@@ -2,12 +2,11 @@ package app
 
 import (
 	"net/http"
+	"traindesk/internal/DTO"
 	"traindesk/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-
-	"traindesk/internal/client"
 )
 
 // handleCreateClient — создать нового клиента тренера.
@@ -30,7 +29,7 @@ func (a *App) handleCreateClient(c *gin.Context) {
 		return
 	}
 
-	var req client.CreateClientRequest
+	var req DTO.CreateClientRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
@@ -55,7 +54,7 @@ func (a *App) handleCreateClient(c *gin.Context) {
 		return
 	}
 
-	resp := client.ClientResponse{
+	resp := DTO.ClientResponse{
 		ID:        cl.ID.String(),
 		FirstName: cl.FirstName,
 		LastName:  cl.LastName,
@@ -90,9 +89,9 @@ func (a *App) handleGetClients(c *gin.Context) {
 		return
 	}
 
-	resp := make([]client.ClientResponse, 0, len(clientsDB))
+	resp := make([]DTO.ClientResponse, 0, len(clientsDB))
 	for _, cl := range clientsDB {
-		resp = append(resp, client.ClientResponse{
+		resp = append(resp, DTO.ClientResponse{
 			ID:        cl.ID.String(),
 			FirstName: cl.FirstName,
 			LastName:  cl.LastName,

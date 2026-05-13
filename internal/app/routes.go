@@ -20,6 +20,7 @@ func (a *App) registerRoutes() {
 			auth.POST("/verify-email", a.handleVerifyEmail)
 			auth.POST("/forgot-password", a.handleForgotPassword)
 			auth.POST("/reset-password", a.handleResetPasswordConfirm)
+			auth.POST("/refresh", a.handleRefresh)
 
 			// Защищенные роуты профиля
 			profile := auth.Group("/profile", a.AuthMiddleware())

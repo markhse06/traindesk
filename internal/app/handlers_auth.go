@@ -2,24 +2,24 @@ package app
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
+	"traindesk/internal/DTO"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 
 	"traindesk/internal/config"
 	"traindesk/internal/domain"
-	"traindesk/internal/user"
 )
 
 var cfg = config.Load()
 var jwtSecret = []byte(cfg.JWTSecret)
-
-const jwtTTL = 7 * 24 * time.Hour
 
 // generateVerifyCode генерирует короткий код подтверждения почты.
 func generateVerificationCode() (string, error) {
@@ -34,9 +34,18 @@ func generateVerificationCode() (string, error) {
 	return fmt.Sprintf("%06d", code), nil // всегда 6 цифр, с лидирующими нулями
 }
 
+// Вспомогательная функция для генерации случайной строки
+func secureRandomString(length int) string {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
+}
+
 // handleRegister — регистрация пользователя.
 func (a *App) handleRegister(c *gin.Context) {
-	var req user.RegisterRequest
+	var req DTO.RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
@@ -91,12 +100,13 @@ func (a *App) handleRegister(c *gin.Context) {
 			"error":   "failed to send email verification code",
 			"details": err.Error(),
 		})
+		a.db.Delete(&u)
 		return
 	}
 
 	a.db.Create(&verification)
 
-	resp := user.RegisterResponse{
+	resp := DTO.RegisterResponse{
 		ID:          u.ID.String(),
 		Email:       u.Email,
 		TrainerName: u.TrainerName,
@@ -107,24 +117,21 @@ func (a *App) handleRegister(c *gin.Context) {
 
 // handleLogin — логин пользователя с проверкой пароля и статуса e‑mail.
 func (a *App) handleLogin(c *gin.Context) {
-	var req user.LoginRequest
+	var req DTO.LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email and password are required"})
-		return
-	}
-
+	// Поиск пользователя
 	var u domain.User
 	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
 	}
 
+	// Проверка верификации и пароля
 	if !u.EmailVerified {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "email is not verified"})
 		return
@@ -135,33 +142,50 @@ func (a *App) handleLogin(c *gin.Context) {
 		return
 	}
 
+	// Генерация Access Token (короткий JWT)
 	now := time.Now()
-	claims := jwt.MapClaims{
+	accessClaims := jwt.MapClaims{
 		"sub": u.ID.String(),
-		"exp": now.Add(jwtTTL).Unix(),
+		"exp": now.Add(15 * time.Minute).Unix(),
 		"iat": now.Unix(),
 	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecret)
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(jwtSecret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
 		return
 	}
 
-	resp := user.LoginResponse{
-		Token:       tokenString,
-		ID:          u.ID.String(),
-		Email:       u.Email,
-		TrainerName: u.TrainerName,
+	// Генерация Refresh Token (длинная случайная строка)
+	refreshTokenString := secureRandomString(32)
+
+	refresh := domain.RefreshToken{
+		UserID:    u.ID,
+		Token:     refreshTokenString,
+		ExpiresAt: now.Add(7 * 24 * time.Hour), // Живет 7 дней
 	}
 
-	c.JSON(http.StatusOK, resp)
+	// Сохраняем Refresh Token в БД
+	if err := a.db.Create(&refresh).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save refresh token"})
+		return
+	}
+
+	// Ответ
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  accessTokenString,
+		"refresh_token": refreshTokenString,
+		"user": gin.H{
+			"id":           u.ID.String(),
+			"email":        u.Email,
+			"trainer_name": u.TrainerName,
+		},
+	})
 }
 
 // handleVerifyEmail — подтверждение e‑mail по коду.
 func (a *App) handleVerifyEmail(c *gin.Context) {
-	var req user.VerifyEmailRequest
+	var req DTO.VerifyEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
@@ -199,7 +223,7 @@ func (a *App) handleChangePassword(c *gin.Context) {
 	userIDStr := c.MustGet("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
 
-	var req user.ChangePasswordRequest
+	var req DTO.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
@@ -235,8 +259,7 @@ func (a *App) handleForgotPassword(c *gin.Context) {
 
 	var u domain.User
 	if err := a.db.Where("email = ?", req.Email).First(&u).Error; err != nil {
-		// Отвечаем 200, чтобы не "палить" наличие email в базе
-		c.JSON(http.StatusOK, gin.H{"message": "if email exists, reset code sent"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "email doesn't exist"})
 		return
 	}
 
@@ -253,13 +276,16 @@ func (a *App) handleForgotPassword(c *gin.Context) {
 	var name string
 	a.db.Raw("SELECT trainer_name FROM users WHERE id = ?", reset.UserID).Scan(&name)
 
-	go a.mailer.SendEmailVerificationCode(code, req.Email, name)
+	if err := a.mailer.SendEmailVerificationCode(code, req.Email, name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "reset_code_sent"})
+	c.JSON(http.StatusOK, gin.H{"message": "reset code sent"})
 }
 
 func (a *App) handleResetPasswordConfirm(c *gin.Context) {
-	var req user.ResetPasswordConfirmRequest
+	var req DTO.ResetPasswordConfirmRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
@@ -303,5 +329,80 @@ func (a *App) handleGetProfile(c *gin.Context) {
 		"id":           u.ID,
 		"email":        u.Email,
 		"trainer_name": u.TrainerName,
+	})
+}
+
+func (a *App) handleRefresh(c *gin.Context) {
+	var req DTO.RefreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "refresh_token is required"})
+		return
+	}
+
+	// Ищем токен в базе данных
+	var storedToken domain.RefreshToken
+	if err := a.db.Where("token = ?", req.RefreshToken).First(&storedToken).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		return
+	}
+
+	// Проверяем, не протух ли он
+	if time.Now().After(storedToken.ExpiresAt) {
+		a.db.Delete(&storedToken) // Удаляем старый, чтобы не засорять базу
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token expired"})
+		return
+	}
+
+	// Получаем пользователя
+	var u domain.User
+	if err := a.db.First(&u, "id = ?", storedToken.UserID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+		return
+	}
+
+	// Генерируем новую пару токенов
+	now := time.Now()
+
+	// Новый Access Token
+	accessClaims := jwt.MapClaims{
+		"sub": u.ID.String(),
+		"exp": now.Add(15 * time.Minute).Unix(),
+		"iat": now.Unix(),
+	}
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(jwtSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
+		return
+	}
+
+	// Новый Refresh Token
+	newRefreshTokenString := secureRandomString(32)
+
+	// Обновляем запись в базе или удаляем старую и создаем новую
+	err = a.db.Transaction(func(tx *gorm.DB) error {
+		// Удаляем использованный токен
+		if err := tx.Delete(&storedToken).Error; err != nil {
+			return err
+		}
+
+		// Создаем новый
+		newRefresh := domain.RefreshToken{
+			UserID:    u.ID,
+			Token:     newRefreshTokenString,
+			ExpiresAt: now.Add(7 * 24 * time.Hour),
+		}
+		return tx.Create(&newRefresh).Error
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update refresh token"})
+		return
+	}
+
+	// Отдаем новые данные
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  accessTokenString,
+		"refresh_token": newRefreshTokenString,
 	})
 }

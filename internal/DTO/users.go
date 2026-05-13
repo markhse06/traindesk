@@ -1,4 +1,4 @@
-package user
+package DTO
 
 // RegisterRequest описывает тело запроса для регистрации.
 type RegisterRequest struct {
@@ -18,14 +18,6 @@ type RegisterResponse struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
-}
-
-// LoginResponse описывает ответ при логине.
-type LoginResponse struct {
-	Token       string `json:"token"`
-	ID          string `json:"id"`
-	Email       string `json:"email"`
-	TrainerName string `json:"trainer_name"`
 }
 
 // VerifyEmailRequest описывает тело запроса подтверждения почты.
@@ -51,4 +43,9 @@ type ResetPasswordConfirmRequest struct {
 	Email       string `json:"email"`
 	Code        string `json:"code"`
 	NewPassword string `json:"new_password"`
+}
+
+// RefreshRequest — запрос на обновление пары токенов.
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }

@@ -33,12 +33,12 @@ func NewSender() *Sender {
 }
 
 // SendEmail общий метод, который инкапсулирует отправку текста по API
-func (s *Sender) SendEmail(from, name, to, subject, body string) error {
+func (s *Sender) SendEmail(from, name, receiver, subject, body string) error {
 	url := "https://api.smtp2go.com/v3/email/send"
 
 	// Используем map для гибкости, так как нам не нужны вложения (attachments) во всех письмах
 	payload := map[string]interface{}{
-		"to":        name + " " + "<" + to + ">",
+		"to":        []string{fmt.Sprintf("%s <%s>", name, receiver)},
 		"sender":    from,
 		"subject":   subject,
 		"html_body": body,
@@ -64,7 +64,12 @@ func (s *Sender) SendEmail(from, name, to, subject, body string) error {
 	if err != nil {
 		return fmt.Errorf("ошибка отправки запроса: %w", err)
 	}
-	defer res.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(res.Body)
 
 	// Читаем тело ответа для логирования или обработки специфических ошибок
 	respBody, _ := io.ReadAll(res.Body)
@@ -136,13 +141,13 @@ func generateVerificationCodeHTML(code string) (string, error) {
 	return tpl.String(), nil
 }
 
-func (s *Sender) SendEmailVerificationCode(code, to, name string) error {
+func (s *Sender) SendEmailVerificationCode(code, name, receiver string) error {
 	subject, err := generateVerificationCodeHTML(code)
 	if err != nil {
 		return err
 	}
 
-	if err := s.SendEmail(s.Sender, name, to, "Код подтверждения почты", subject); err != nil {
+	if err := s.SendEmail(s.Sender, name, receiver, "Код подтверждения почты", subject); err != nil {
 		return err
 	}
 
