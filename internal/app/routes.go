@@ -46,6 +46,15 @@ func (a *App) registerRoutes() {
 		{
 			clients.GET("", a.handleGetClients)
 			clients.POST("", a.handleCreateClient)
+			clients.GET("/:id", a.handleGetClientByID)
+			clients.PATCH("/:id", a.handleUpdateClient)
+			clients.DELETE("/:id", a.handleDeleteClient)
+		}
+
+		packages := api.Group("/packages", a.AuthMiddleware())
+		{
+			packages.POST("", a.handleCreatePackage)
+			packages.GET("/:client_id", a.handleGetClientPackages)
 		}
 	}
 }

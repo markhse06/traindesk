@@ -38,11 +38,13 @@ func IsValidType(t string) bool {
 
 // Workout — сущность тренировки в БД.
 type Workout struct {
-	ID      uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	UserID  uuid.UUID `gorm:"type:uuid;not null;index"`
-	Clients []Client  `gorm:"many2many:workout_clients;constraint:OnDelete:CASCADE"`
+	ID     uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	UserID uuid.UUID `gorm:"type:uuid;not null;index"`
 
-	Date        time.Time   `gorm:"type:timestamptz;not null"`
+	Clients   []Client  `gorm:"many2many:workout_clients;constraint:OnDelete:CASCADE"`
+	PackageID uuid.UUID `gorm:"foreignKey:ID;reference:ID;constraint:OnDelete:CASCADE"`
+
+	DateTime    time.Time   `gorm:"type:timestamptz;not null"`
 	DurationMin int         `gorm:"not null"`
 	Type        WorkoutType `gorm:"type:varchar(32);not null"`
 	Notes       string      `gorm:"type:text"`

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 	"traindesk/internal/DTO"
@@ -24,23 +25,8 @@ import (
 // @Failure 500 {object} DTO.ErrorResponse
 // @Router /api/v1/workouts [post]
 func (a *App) handleCreateWorkout(c *gin.Context) {
-	userIDVal, ok := c.Get("user_id")
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
-		return
-	}
-
-	userIDStr, ok := userIDVal.(string)
-	if !ok || userIDStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in context"})
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in token"})
-		return
-	}
+	userID := c.MustGet("user_id").(string) // Используем MustGet, так как Middleware гарантирует наличие
+	userUUID, _ := uuid.Parse(userID)
 
 	var req DTO.CreateWorkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -48,101 +34,90 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		return
 	}
 
-	if req.Date == "" || req.DurationMin < 1 || req.DurationMin > 300 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "date and duration_min (1-300) are required",
-		})
+	if len(req.ClientIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one client is required for a workout"})
 		return
 	}
 
-	if !domain.IsValidType(req.Type) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "invalid workout type",
-			"allowed_types": domain.ValidWorkoutTypes,
-		})
-		return
-	}
-
-	date, err := time.Parse("2006-01-02", req.Date)
+	// Валидация времени
+	dateTime, err := time.Parse(time.RFC3339, req.DateTime)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid date format, expected YYYY-MM-DD",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, use RFC3339 (e.g. 2026-05-12T15:00:00Z)", "details": err.Error()})
 		return
 	}
 
-	// Парсим client_ids в UUID и проверяем, что все клиенты принадлежат текущему тренеру.
 	clientUUIDs := make([]uuid.UUID, 0, len(req.ClientIDs))
 	for _, cidStr := range req.ClientIDs {
-		cid, err := uuid.Parse(cidStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid client_id: " + cidStr})
-			return
-		}
+		cid, _ := uuid.Parse(cidStr)
 		clientUUIDs = append(clientUUIDs, cid)
 	}
 
-	if len(clientUUIDs) > 0 {
-		var cnt int64
-		if err := a.db.
-			Model(&domain.Client{}).
-			Where("user_id = ? AND id IN ?", userID, clientUUIDs).
-			Count(&cnt).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate clients"})
-			return
-		}
-		if cnt != int64(len(clientUUIDs)) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "one or more client_ids do not belong to the current user",
-			})
-			return
-		}
-	}
-
+	// Создаем объект тренировки
 	w := domain.Workout{
 		ID:          uuid.New(),
-		UserID:      userID,
-		Date:        date,
+		UserID:      userUUID,
+		DateTime:    dateTime,
 		DurationMin: req.DurationMin,
 		Type:        domain.WorkoutType(req.Type),
 		Notes:       req.Notes,
 	}
 
 	err = a.db.Transaction(func(tx *gorm.DB) error {
+		// Проверяем клиентов
+		var clients []domain.Client
+		tx.Where("user_id = ? AND id IN ?", userUUID, clientUUIDs).Find(&clients)
+		if len(clients) != len(clientUUIDs) {
+			return fmt.Errorf("invalid clients")
+		}
+
+		// Сохраняем тренировку
 		if err := tx.Create(&w).Error; err != nil {
 			return err
 		}
 
-		if len(clientUUIDs) > 0 {
-			links := make([]domain.WorkoutClient, 0, len(clientUUIDs))
-			for _, cid := range clientUUIDs {
-				links = append(links, domain.WorkoutClient{
-					WorkoutID: w.ID,
-					ClientID:  cid,
-				})
+		// Создаем связи в many2many таблице
+		if err := tx.Model(&w).Association("Clients").Replace(clients); err != nil {
+			return err
+		}
+
+		if req.PackageID != nil && *req.PackageID != "" {
+			pkgID, err := uuid.Parse(*req.PackageID)
+			if err != nil {
+				return err
 			}
-			if err := tx.Create(&links).Error; err != nil {
+			var pkg domain.WorkoutPackage
+
+			// Находим пакет и проверяем, есть ли в нем место
+			if err := tx.Where("id = ? AND trainer_id = ? AND used_count < total_count", pkgID, userUUID).First(&pkg).Error; err != nil {
+				return fmt.Errorf("active package not found or no sessions left")
+			}
+
+			// Привязываем тренировку к пакету (нужно добавить поле PackageID в domain.Workout)
+			w.PackageID = pkgID
+			if err := tx.Save(&w).Error; err != nil {
+				return err
+			}
+
+			// Инкрементируем счетчик
+			newUsed := pkg.UsedCount + 1
+			updates := map[string]interface{}{"used_count": newUsed}
+			if newUsed >= pkg.TotalCount {
+				updates["is_active"] = false
+			}
+
+			if err := tx.Model(&pkg).Updates(updates).Error; err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workout"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	resp := DTO.WorkoutResponse{
-		ID:          w.ID.String(),
-		Date:        w.Date.Format("2006-01-02"),
-		DurationMin: w.DurationMin,
-		Type:        string(w.Type),
-		ClientIDs:   req.ClientIDs,
-		Notes:       w.Notes,
-	}
-
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, w)
 }
 
 // handleGetWorkouts — список тренировок текущего тренера с client_ids.
@@ -155,56 +130,59 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 // @Failure 500 {object} DTO.ErrorResponse
 // @Router /api/v1/workouts [get]
 func (a *App) handleGetWorkouts(c *gin.Context) {
-	userIDVal, ok := c.Get("user_id")
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
-		return
+	// Получаем ID пользователя из контекста (установлен Middleware)
+	userID := c.MustGet("user_id").(string)
+	userUUID, _ := uuid.Parse(userID)
+
+	// Получаем фильтры из Query параметров
+	startedAtStr := c.Query("started_at")
+	endedAtStr := c.Query("ended_at")
+
+	// Строим запрос через GORM
+	query := a.db.Preload("Clients").Where("user_id = ?", userUUID)
+
+	// Добавляем фильтрацию, если параметры переданы
+	if startedAtStr != "" {
+		t, err := time.Parse(time.RFC3339, startedAtStr)
+		if err == nil {
+			query = query.Where("date_time >= ?", t)
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid started_at format, use RFC3339"})
+			return
+		}
 	}
 
-	userIDStr, ok := userIDVal.(string)
-	if !ok || userIDStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in context"})
-		return
-	}
-
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in token"})
-		return
+	if endedAtStr != "" {
+		t, err := time.Parse(time.RFC3339, endedAtStr)
+		if err == nil {
+			query = query.Where("date_time <= ?", t)
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ended_at format, use RFC3339"})
+			return
+		}
 	}
 
 	var workoutsDB []domain.Workout
-	if err := a.db.Where("user_id = ?", userID).Order("date desc").Find(&workoutsDB).Error; err != nil {
+	if err := query.Order("date_time asc").Find(&workoutsDB).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workouts"})
 		return
 	}
 
-	workoutIDs := make([]uuid.UUID, 0, len(workoutsDB))
-	for _, w := range workoutsDB {
-		workoutIDs = append(workoutIDs, w.ID)
-	}
-
-	linksMap := make(map[uuid.UUID][]string)
-	if len(workoutIDs) > 0 {
-		var links []domain.WorkoutClient
-		if err := a.db.Where("workout_id IN ?", workoutIDs).Find(&links).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workout clients"})
-			return
-		}
-
-		for _, l := range links {
-			linksMap[l.WorkoutID] = append(linksMap[l.WorkoutID], l.ClientID.String())
-		}
-	}
-
+	// Мапим результат в DTO
+	// Благодаря Preload("Clients"), данные о клиентах уже лежат внутри workoutsDB[i].Clients
 	resp := make([]DTO.WorkoutResponse, 0, len(workoutsDB))
 	for _, w := range workoutsDB {
+		clientIDs := make([]string, 0, len(w.Clients))
+		for _, cl := range w.Clients {
+			clientIDs = append(clientIDs, cl.ID.String())
+		}
+
 		resp = append(resp, DTO.WorkoutResponse{
 			ID:          w.ID.String(),
-			Date:        w.Date.Format("2006-01-02"),
+			DateTime:    w.DateTime.Format(time.RFC3339),
 			DurationMin: w.DurationMin,
 			Type:        string(w.Type),
-			ClientIDs:   linksMap[w.ID], // это []string
+			ClientIDs:   clientIDs,
 			Notes:       w.Notes,
 		})
 	}
@@ -224,16 +202,8 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 // @Failure 500 {object} DTO.ErrorResponse
 // @Router /api/v1/workouts/{id} [get]
 func (a *App) handleGetWorkoutByID(c *gin.Context) {
-	userIDVal, ok := c.Get("user_id")
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
-		return
-	}
-	userIDStr, ok := userIDVal.(string)
-	if !ok || userIDStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in context"})
-		return
-	}
+	userIDStr := c.MustGet("user_id").(string)
+
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in token"})
@@ -271,7 +241,7 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 
 	resp := DTO.WorkoutResponse{
 		ID:          w.ID.String(),
-		Date:        w.Date.Format("2006-01-02"),
+		DateTime:    w.DateTime.Format(time.RFC3339),
 		DurationMin: w.DurationMin,
 		Type:        string(w.Type),
 		ClientIDs:   clientIDs,
@@ -295,142 +265,95 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 // @Failure 500 {object} DTO.ErrorResponse
 // @Router /api/v1/workouts/{id} [put]
 func (a *App) handleUpdateWorkout(c *gin.Context) {
-	userIDVal, ok := c.Get("user_id")
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
-		return
-	}
-	userIDStr, ok := userIDVal.(string)
-	if !ok || userIDStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in context"})
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user_id in token"})
-		return
-	}
+	userID := c.MustGet("user_id").(string)
+	userUUID, _ := uuid.Parse(userID)
 
-	workoutIDStr := c.Param("id")
-	workoutID, err := uuid.Parse(workoutIDStr)
+	workoutID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout id"})
 		return
 	}
 
+	// Находим существующую тренировку
 	var existing domain.Workout
-	if err := a.db.Where("id = ? AND user_id = ?", workoutID, userID).First(&existing).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "workout not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workout"})
-		}
+	if err := a.db.Where("id = ? AND user_id = ?", workoutID, userUUID).First(&existing).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workout not found"})
 		return
 	}
 
-	var req DTO.CreateWorkoutRequest
+	// Десериализуем в Update структуру
+	var req DTO.UpdateWorkoutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
 	}
 
-	if req.Date == "" || req.DurationMin < 1 || req.DurationMin > 300 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "date and duration_min (1-300) are required",
-		})
-		return
-	}
-
-	if !domain.IsValidType(req.Type) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":         "invalid workout type",
-			"allowed_types": domain.ValidWorkoutTypes,
-		})
-		return
-	}
-
-	date, err := time.Parse("2006-01-02", req.Date)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid date format, expected YYYY-MM-DD",
-		})
-		return
-	}
-
-	// Разбираем client_ids и проверяем их владельца.
-	clientUUIDs := make([]uuid.UUID, 0, len(req.ClientIDs))
-	for _, cidStr := range req.ClientIDs {
-		cid, err := uuid.Parse(cidStr)
+	// Частичное обновление полей
+	if req.DateTime != nil {
+		dateTime, err := time.Parse(time.RFC3339, *req.DateTime)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid client_id: " + cidStr})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format"})
 			return
 		}
-		clientUUIDs = append(clientUUIDs, cid)
+		existing.DateTime = dateTime // Предположим, поле в БД называется Date
 	}
 
-	if len(clientUUIDs) > 0 {
-		var cnt int64
-		if err := a.db.
-			Model(&domain.Client{}).
-			Where("user_id = ? AND id IN ?", userID, clientUUIDs).
-			Count(&cnt).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate clients"})
+	if req.DurationMin != nil {
+		if *req.DurationMin < 1 || *req.DurationMin > 300 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "duration_min must be 1-300"})
 			return
 		}
-		if cnt != int64(len(clientUUIDs)) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "one or more client_ids do not belong to the current user",
-			})
-			return
-		}
+		existing.DurationMin = *req.DurationMin
 	}
 
-	existing.Date = date
-	existing.DurationMin = req.DurationMin
-	existing.Type = domain.WorkoutType(req.Type)
-	existing.Notes = req.Notes
+	if req.Type != nil {
+		if !domain.IsValidType(*req.Type) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout type"})
+			return
+		}
+		existing.Type = domain.WorkoutType(*req.Type)
+	}
 
+	if req.Notes != nil {
+		existing.Notes = *req.Notes
+	}
+
+	// Логика обновления клиентов (если переданы)
 	err = a.db.Transaction(func(tx *gorm.DB) error {
+		// Сохраняем основные поля
 		if err := tx.Save(&existing).Error; err != nil {
 			return err
 		}
 
-		// Сначала удаляем старые связи.
-		if err := tx.Where("workout_id = ?", existing.ID).Delete(&domain.WorkoutClient{}).Error; err != nil {
-			return err
-		}
-
-		// Затем добавляем новые связи.
-		if len(clientUUIDs) > 0 {
-			links := make([]domain.WorkoutClient, 0, len(clientUUIDs))
-			for _, cid := range clientUUIDs {
-				links = append(links, domain.WorkoutClient{
-					WorkoutID: existing.ID,
-					ClientID:  cid,
-				})
+		// Если client_ids переданы явно (даже если это пустой список)
+		if req.ClientIDs != nil {
+			// Валидация и обновление связей many2many
+			clientUUIDs := make([]uuid.UUID, 0, len(*req.ClientIDs))
+			for _, cidStr := range *req.ClientIDs {
+				cid, _ := uuid.Parse(cidStr)
+				clientUUIDs = append(clientUUIDs, cid)
 			}
-			if err := tx.Create(&links).Error; err != nil {
+
+			var clients []domain.Client
+			tx.Where("user_id = ? AND id IN ?", userUUID, clientUUIDs).Find(&clients)
+			if len(clients) != len(clientUUIDs) {
+				return fmt.Errorf("one or more client_ids are invalid")
+			}
+
+			// GORM Association Replace удалит старые связи и запишет новые
+			if err := tx.Model(&existing).Association("Clients").Replace(clients); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update workout"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	resp := DTO.WorkoutResponse{
-		ID:          existing.ID.String(),
-		Date:        existing.Date.Format("2006-01-02"),
-		DurationMin: existing.DurationMin,
-		Type:        string(existing.Type),
-		ClientIDs:   req.ClientIDs,
-		Notes:       existing.Notes,
-	}
-
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, existing)
 }
 
 // @Summary Delete workout

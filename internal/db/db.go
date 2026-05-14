@@ -55,5 +55,7 @@ func autoMigrate(gormDB *gorm.DB) error {
 		&domain.Workout{},
 		&domain.WorkoutClient{},
 		&domain.EmailVerification{},
+		&domain.RefreshToken{},
+		&domain.WorkoutPackage{},
 	)
 }
