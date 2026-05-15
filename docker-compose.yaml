@@ -8,11 +8,31 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT}:5432"
+      - "127.0.0.1:${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traindesk_network
+
+  db_test:
+    image: postgres:15-alpine
+    container_name: traindesk_db_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: traindesk_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d traindesk_test"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -29,11 +49,25 @@ services:
     restart: on-failure
     env_file:
       - .env
-    ports:
-      - "${HTTP_PORT}:${HTTP_PORT}"
+    expose:
+      - "${HTTP_PORT}"
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - traindesk_network
+
+  nginx:
+    image: nginx:latest
+    container_name: traindesk_nginx
+    restart: always
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
     networks:
       - traindesk_network
 

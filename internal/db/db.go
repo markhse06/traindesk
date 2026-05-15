@@ -11,13 +11,13 @@ import (
 	"traindesk/internal/config"
 )
 
-var cfg = config.Load()
-
 type DB struct {
 	*gorm.DB
 }
 
 func NewDB() (*DB, error) {
+	cfg := config.Load()
+
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName,

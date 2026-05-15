@@ -9,6 +9,10 @@ import (
 )
 
 func (a *App) registerRoutes() {
+	if err := a.router.SetTrustedProxies([]string{"127.0.0.1"}); err != nil {
+		return
+	}
+
 	a.router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})

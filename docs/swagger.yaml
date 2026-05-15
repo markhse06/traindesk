@@ -1,0 +1,629 @@
+basePath: /
+definitions:
+  DTO.ChangePasswordRequest:
+    properties:
+      email:
+        type: string
+      new_password:
+        type: string
+      old_password:
+        type: string
+    type: object
+  DTO.ClientResponse:
+    properties:
+      first_name:
+        type: string
+      id:
+        type: string
+      last_name:
+        type: string
+    type: object
+  DTO.CreateClientRequest:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+    type: object
+  DTO.CreateWorkoutRequest:
+    properties:
+      client_ids:
+        description: 0, 1 или несколько клиентов
+        items:
+          type: string
+        type: array
+      date_time:
+        description: YYYY-MM-DD
+        type: string
+      duration_min:
+        description: 1–300
+        type: integer
+      notes:
+        type: string
+      type:
+        description: '"cardio", "strength", "stretch", "functional"'
+        type: string
+    type: object
+  DTO.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  DTO.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  DTO.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/DTO.RegisterResponse'
+    type: object
+  DTO.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  DTO.ProfileResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      trainer_name:
+        type: string
+    type: object
+  DTO.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  DTO.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      trainer_name:
+        type: string
+    type: object
+  DTO.RegisterResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      trainer_name:
+        type: string
+    type: object
+  DTO.ResetPasswordConfirmRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+      new_password:
+        type: string
+    type: object
+  DTO.ResetPasswordRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  DTO.TokenPairResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  DTO.VerifyEmailRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+    type: object
+  DTO.WorkoutResponse:
+    properties:
+      client_ids:
+        items:
+          type: string
+        type: array
+      datetime:
+        type: string
+      duration_min:
+        type: integer
+      id:
+        type: string
+      notes:
+        type: string
+      type:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: REST API for trainer account, client, and workout management.
+  title: TrainDesk API
+  version: "1.0"
+paths:
+  /api/v1/clients:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/DTO.ClientResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List clients
+      tags:
+      - clients
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.CreateClientRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/DTO.ClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create client
+      tags:
+      - clients
+  /api/v1/user/forgot-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Password reset request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      summary: Request password reset
+      tags:
+      - user
+  /api/v1/user/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      summary: Login user
+      tags:
+      - user
+  /api/v1/user/profile:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.ProfileResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get profile
+      tags:
+      - user
+  /api/v1/user/profile/change-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Password change data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - user
+  /api/v1/user/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.TokenPairResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      summary: Refresh tokens
+      tags:
+      - user
+  /api/v1/user/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/DTO.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      summary: Register user
+      tags:
+      - user
+  /api/v1/user/reset-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Password reset confirmation
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.ResetPasswordConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      summary: Confirm password reset
+      tags:
+      - user
+  /api/v1/user/verify-email:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Verification data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.VerifyEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      summary: Verify email
+      tags:
+      - user
+  /api/v1/workouts:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/DTO.WorkoutResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List workouts
+      tags:
+      - workouts
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Workout data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.CreateWorkoutRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/DTO.WorkoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create workout
+      tags:
+      - workouts
+  /api/v1/workouts/{id}:
+    delete:
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete workout
+      tags:
+      - workouts
+    get:
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.WorkoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get workout
+      tags:
+      - workouts
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Workout data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/DTO.CreateWorkoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/DTO.WorkoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/DTO.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update workout
+      tags:
+      - workouts
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
