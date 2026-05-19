@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 	"strings"
+	"time"
 	"traindesk/internal/DTO"
 	"traindesk/internal/domain"
 
@@ -42,6 +43,11 @@ func (a *App) handleCreateClient(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "first_name and last_name are required"})
 		return
 	}
+	updatedAt, err := parseOptionalRFC3339(req.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})
+		return
+	}
 
 	cl := domain.Client{
 		ID:        uuid.New(),
@@ -51,6 +57,9 @@ func (a *App) handleCreateClient(c *gin.Context) {
 		Height:    req.Height,
 		Weight:    req.Weight,
 		Goal:      req.Goal,
+	}
+	if updatedAt != nil {
+		cl.UpdatedAt = *updatedAt
 	}
 
 	if err := a.db.Create(&cl).Error; err != nil {
@@ -188,11 +197,25 @@ func (a *App) handleUpdateClient(c *gin.Context) {
 	if req.Goal != nil {
 		updates["goal"] = *req.Goal
 	}
+	incomingUpdatedAt, err := parseOptionalRFC3339(req.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})
+		return
+	}
+	if incomingUpdatedAt != nil {
+		updates["updated_at"] = *incomingUpdatedAt
+	}
 
 	var cl domain.Client
+	var staleUpdatedAt *time.Time
 	err = a.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ? AND user_id = ?", clientID, userID).First(&cl).Error; err != nil {
 			return err
+		}
+		if incomingUpdatedAt != nil && incomingUpdatedAt.Before(cl.UpdatedAt.UTC()) {
+			current := cl.UpdatedAt
+			staleUpdatedAt = &current
+			return nil
 		}
 		if len(updates) == 0 {
 			return nil
@@ -208,6 +231,10 @@ func (a *App) handleUpdateClient(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update client"})
+		return
+	}
+	if staleUpdatedAt != nil {
+		writeStaleUpdate(c, *staleUpdatedAt)
 		return
 	}
 
@@ -331,5 +358,7 @@ func clientToResponse(cl domain.Client, stats clientSessionStats) DTO.ClientResp
 		Goal:          cl.Goal,
 		TotalSessions: stats.TotalSessions,
 		LeftSessions:  stats.LeftSessions,
+		CreatedAt:     formatAPITime(cl.CreatedAt),
+		UpdatedAt:     formatAPITime(cl.UpdatedAt),
 	}
 }

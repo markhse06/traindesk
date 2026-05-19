@@ -57,7 +57,5 @@ func LoadSMTP() SMTPConfig {
 		Sender: os.Getenv("EMAIL_SENDER"),
 	}
 
-	log.Println(SMTPcfg.API)
-
 	return SMTPcfg
 }

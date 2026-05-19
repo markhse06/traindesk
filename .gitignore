@@ -3,3 +3,4 @@ sum.go
 .env
 .env.test
 go.sum
+.gocache/

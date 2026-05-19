@@ -108,6 +108,291 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/clients/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Get client",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Delete client",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Update client",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Client data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/DTO.UpdateClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/packages": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workout-packages"
+                ],
+                "summary": "Create workout package",
+                "parameters": [
+                    {
+                        "description": "Workout package data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/DTO.CreatePackageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.WorkoutPackage"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/reports/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "Report summary",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Period start, RFC3339",
+                        "name": "started_at",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Period end, RFC3339",
+                        "name": "ended_at",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ReportSummaryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/DTO.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/user/forgot-password": {
             "post": {
                 "consumes": [
@@ -767,14 +1052,38 @@ const docTemplate = `{
         "DTO.ClientResponse": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "first_name": {
                     "type": "string"
+                },
+                "goal": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "number"
                 },
                 "id": {
                     "type": "string"
                 },
                 "last_name": {
                     "type": "string"
+                },
+                "left_sessions": {
+                    "type": "integer"
+                },
+                "total_sessions": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "weight": {
+                    "type": "number"
                 }
             }
         },
@@ -784,7 +1093,40 @@ const docTemplate = `{
                 "first_name": {
                     "type": "string"
                 },
+                "goal": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "number"
+                },
                 "last_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "weight": {
+                    "type": "number"
+                }
+            }
+        },
+        "DTO.CreatePackageRequest": {
+            "type": "object",
+            "required": [
+                "client_id",
+                "total_count"
+            ],
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }
@@ -793,25 +1135,30 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "client_ids": {
-                    "description": "0, 1 или несколько клиентов",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
                 "date_time": {
-                    "description": "YYYY-MM-DD",
                     "type": "string"
                 },
                 "duration_min": {
-                    "description": "1–300",
                     "type": "integer"
                 },
                 "notes": {
                     "type": "string"
                 },
+                "package_id": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
                 "type": {
-                    "description": "\"cardio\", \"strength\", \"stretch\", \"functional\"",
+                    "type": "string"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }
@@ -910,6 +1257,75 @@ const docTemplate = `{
                 }
             }
         },
+        "DTO.ReportClientActivity": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "total_duration_min": {
+                    "type": "integer"
+                },
+                "workout_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "DTO.ReportSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "active_clients": {
+                    "type": "integer"
+                },
+                "by_client": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/DTO.ReportClientActivity"
+                    }
+                },
+                "by_type": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/DTO.ReportWorkoutTypeSummary"
+                    }
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "total_duration_min": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "number"
+                },
+                "total_workouts": {
+                    "type": "integer"
+                }
+            }
+        },
+        "DTO.ReportWorkoutTypeSummary": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "number"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "DTO.ResetPasswordConfirmRequest": {
             "type": "object",
             "properties": {
@@ -943,6 +1359,29 @@ const docTemplate = `{
                 }
             }
         },
+        "DTO.UpdateClientRequest": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "goal": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "number"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "weight": {
+                    "type": "number"
+                }
+            }
+        },
         "DTO.VerifyEmailRequest": {
             "type": "object",
             "properties": {
@@ -963,6 +1402,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "created_at": {
+                    "type": "string"
+                },
                 "datetime": {
                     "type": "string"
                 },
@@ -975,8 +1417,46 @@ const docTemplate = `{
                 "notes": {
                     "type": "string"
                 },
+                "price": {
+                    "type": "number"
+                },
                 "type": {
                     "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.WorkoutPackage": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "trainer_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "used_count": {
+                    "type": "integer"
                 }
             }
         }

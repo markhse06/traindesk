@@ -35,6 +35,14 @@ func (a *App) handleCreatePackage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid client_id"})
 		return
 	}
+	updatedAt, err := parseOptionalRFC3339(req.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})
+		return
+	}
+	if _, ok := a.findClientForTrainer(c, trainerID, clientUUID); !ok {
+		return
+	}
 
 	pkg := domain.WorkoutPackage{
 		ID:         uuid.New(),
@@ -44,13 +52,16 @@ func (a *App) handleCreatePackage(c *gin.Context) {
 		Price:      req.Price,
 		IsActive:   true,
 	}
+	if updatedAt != nil {
+		pkg.UpdatedAt = *updatedAt
+	}
 
 	if err := a.db.Create(&pkg).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create package"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, pkg)
+	c.JSON(http.StatusCreated, packageToResponse(pkg))
 }
 
 func (a *App) handleGetClientPackages(c *gin.Context) {
@@ -66,5 +77,24 @@ func (a *App) handleGetClientPackages(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, packages)
+	resp := make([]DTO.WorkoutPackageResponse, 0, len(packages))
+	for _, pkg := range packages {
+		resp = append(resp, packageToResponse(pkg))
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func packageToResponse(pkg domain.WorkoutPackage) DTO.WorkoutPackageResponse {
+	return DTO.WorkoutPackageResponse{
+		ID:         pkg.ID.String(),
+		TrainerID:  pkg.TrainerID.String(),
+		ClientID:   pkg.ClientID.String(),
+		TotalCount: pkg.TotalCount,
+		UsedCount:  pkg.UsedCount,
+		IsActive:   pkg.IsActive,
+		Price:      pkg.Price,
+		CreatedAt:  formatAPITime(pkg.CreatedAt),
+		UpdatedAt:  formatAPITime(pkg.UpdatedAt),
+	}
 }

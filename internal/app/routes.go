@@ -9,9 +9,9 @@ import (
 )
 
 func (a *App) registerRoutes() {
-	//if err := a.router.SetTrustedProxies([]string{"127.0.0.1"}); err != nil {
-	//	return
-	//}
+	if err := a.router.SetTrustedProxies([]string{"127.0.0.1"}); err != nil {
+		return
+	}
 
 	a.router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -59,6 +59,11 @@ func (a *App) registerRoutes() {
 		{
 			packages.POST("", a.handleCreatePackage)
 			packages.GET("/:client_id", a.handleGetClientPackages)
+		}
+
+		reports := api.Group("/reports", a.AuthMiddleware())
+		{
+			reports.GET("/summary", a.handleGetReportSummary)
 		}
 	}
 }

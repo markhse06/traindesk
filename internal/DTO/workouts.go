@@ -1,17 +1,16 @@
 package DTO
 
-// CreateWorkoutRequest — тело запроса при создании тренировки.
 type CreateWorkoutRequest struct {
-	DateTime    string   `json:"date_time"`    // YYYY-MM-DD
-	DurationMin int      `json:"duration_min"` // 1–300
+	DateTime    string   `json:"date_time"`
+	DurationMin int      `json:"duration_min"`
 	Price       float64  `json:"price"`
-	Type        string   `json:"type"`       // "cardio", "strength", "stretch", "functional"
-	ClientIDs   []string `json:"client_ids"` // 0, 1 или несколько клиентов
+	Type        string   `json:"type"`
+	ClientIDs   []string `json:"client_ids"`
 	Notes       string   `json:"notes"`
 	PackageID   *string  `json:"package_id,omitempty"`
+	UpdatedAt   *string  `json:"updated_at,omitempty"`
 }
 
-// WorkoutResponse — то, что отдаём клиенту.
 type WorkoutResponse struct {
 	ID          string   `json:"id"`
 	DateTime    string   `json:"datetime"`
@@ -20,13 +19,16 @@ type WorkoutResponse struct {
 	Type        string   `json:"type"`
 	ClientIDs   []string `json:"client_ids"`
 	Notes       string   `json:"notes"`
+	CreatedAt   string   `json:"created_at"`
+	UpdatedAt   string   `json:"updated_at"`
 }
 
 type UpdateWorkoutRequest struct {
-	DateTime    *string   `json:"date_time"`    // Указатель
-	DurationMin *int      `json:"duration_min"` // Указатель
+	DateTime    *string   `json:"date_time"`
+	DurationMin *int      `json:"duration_min"`
 	Price       *float64  `json:"price"`
-	Type        *string   `json:"type"`       // Указатель
-	ClientIDs   *[]string `json:"client_ids"` // Указатель на слайс
-	Notes       *string   `json:"notes"`      // Указатель
+	Type        *string   `json:"type"`
+	ClientIDs   *[]string `json:"client_ids"`
+	Notes       *string   `json:"notes"`
+	UpdatedAt   *string   `json:"updated_at,omitempty"`
 }

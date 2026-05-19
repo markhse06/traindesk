@@ -45,6 +45,11 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, use RFC3339 (e.g. 2026-05-12T15:00:00Z)", "details": err.Error()})
 		return
 	}
+	updatedAt, err := parseOptionalRFC3339(req.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})
+		return
+	}
 
 	clientUUIDs := make([]uuid.UUID, 0, len(req.ClientIDs))
 	for _, cidStr := range req.ClientIDs {
@@ -60,8 +65,13 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		DurationMin: req.DurationMin,
 		Type:        domain.WorkoutType(req.Type),
 		Notes:       req.Notes,
+		Price:       req.Price,
+	}
+	if updatedAt != nil {
+		w.UpdatedAt = *updatedAt
 	}
 
+	var createdClients []domain.Client
 	err = a.db.Transaction(func(tx *gorm.DB) error {
 		// Проверяем клиентов
 		var clients []domain.Client
@@ -69,6 +79,7 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		if len(clients) != len(clientUUIDs) {
 			return fmt.Errorf("invalid clients")
 		}
+		createdClients = clients
 
 		// Сохраняем тренировку
 		if err := tx.Create(&w).Error; err != nil {
@@ -117,7 +128,8 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, w)
+	w.Clients = createdClients
+	c.JSON(http.StatusCreated, workoutToResponse(w))
 }
 
 // handleGetWorkouts — список тренировок текущего тренера с client_ids.
@@ -181,9 +193,12 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 			ID:          w.ID.String(),
 			DateTime:    w.DateTime.Format(time.RFC3339),
 			DurationMin: w.DurationMin,
+			Price:       w.Price,
 			Type:        string(w.Type),
 			ClientIDs:   clientIDs,
 			Notes:       w.Notes,
+			CreatedAt:   formatAPITime(w.CreatedAt),
+			UpdatedAt:   formatAPITime(w.UpdatedAt),
 		})
 	}
 
@@ -243,9 +258,12 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 		ID:          w.ID.String(),
 		DateTime:    w.DateTime.Format(time.RFC3339),
 		DurationMin: w.DurationMin,
+		Price:       w.Price,
 		Type:        string(w.Type),
 		ClientIDs:   clientIDs,
 		Notes:       w.Notes,
+		CreatedAt:   formatAPITime(w.CreatedAt),
+		UpdatedAt:   formatAPITime(w.UpdatedAt),
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -287,6 +305,15 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
 	}
+	incomingUpdatedAt, err := parseOptionalRFC3339(req.UpdatedAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})
+		return
+	}
+	if incomingUpdatedAt != nil && incomingUpdatedAt.Before(existing.UpdatedAt.UTC()) {
+		writeStaleUpdate(c, existing.UpdatedAt)
+		return
+	}
 
 	// Частичное обновление полей
 	if req.DateTime != nil {
@@ -317,12 +344,24 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 	if req.Notes != nil {
 		existing.Notes = *req.Notes
 	}
+	if req.Price != nil {
+		existing.Price = *req.Price
+	}
+	if incomingUpdatedAt != nil {
+		existing.UpdatedAt = *incomingUpdatedAt
+	}
 
 	// Логика обновления клиентов (если переданы)
 	err = a.db.Transaction(func(tx *gorm.DB) error {
 		// Сохраняем основные поля
 		if err := tx.Save(&existing).Error; err != nil {
 			return err
+		}
+		if incomingUpdatedAt != nil {
+			if err := tx.Model(&existing).UpdateColumn("updated_at", *incomingUpdatedAt).Error; err != nil {
+				return err
+			}
+			existing.UpdatedAt = *incomingUpdatedAt
 		}
 
 		// Если client_ids переданы явно (даже если это пустой список)
@@ -353,7 +392,30 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, existing)
+	if err := a.db.Preload("Clients").Where("id = ? AND user_id = ?", workoutID, userUUID).First(&existing).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load updated workout"})
+		return
+	}
+	c.JSON(http.StatusOK, workoutToResponse(existing))
+}
+
+func workoutToResponse(w domain.Workout) DTO.WorkoutResponse {
+	clientIDs := make([]string, 0, len(w.Clients))
+	for _, cl := range w.Clients {
+		clientIDs = append(clientIDs, cl.ID.String())
+	}
+
+	return DTO.WorkoutResponse{
+		ID:          w.ID.String(),
+		DateTime:    w.DateTime.Format(time.RFC3339),
+		DurationMin: w.DurationMin,
+		Price:       w.Price,
+		Type:        string(w.Type),
+		ClientIDs:   clientIDs,
+		Notes:       w.Notes,
+		CreatedAt:   formatAPITime(w.CreatedAt),
+		UpdatedAt:   formatAPITime(w.UpdatedAt),
+	}
 }
 
 // @Summary Delete workout
