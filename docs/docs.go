@@ -1155,6 +1155,9 @@ const docTemplate = `{
                 "price": {
                     "type": "number"
                 },
+                "status": {
+                    "type": "string"
+                },
                 "type": {
                     "type": "string"
                 },
@@ -1419,6 +1422,9 @@ const docTemplate = `{
                 },
                 "price": {
                     "type": "number"
+                },
+                "status": {
+                    "type": "string"
                 },
                 "type": {
                     "type": "string"

@@ -49,11 +49,20 @@ func (a *App) handleCreateClient(c *gin.Context) {
 		return
 	}
 
+	formattedPhone, err := domain.ValidateAndFormatPhone(req.Phone)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid phone number format. Expected clean international format",
+		})
+		return
+	}
+
 	cl := domain.Client{
 		ID:        uuid.New(),
 		UserID:    userID,
 		FirstName: strings.TrimSpace(req.FirstName),
 		LastName:  strings.TrimSpace(req.LastName),
+		Phone:     formattedPhone,
 		Height:    req.Height,
 		Weight:    req.Weight,
 		Goal:      req.Goal,
@@ -172,6 +181,7 @@ func (a *App) handleUpdateClient(c *gin.Context) {
 	}
 
 	updates := make(map[string]interface{})
+
 	if req.FirstName != nil {
 		firstName := strings.TrimSpace(*req.FirstName)
 		if firstName == "" {
@@ -180,6 +190,7 @@ func (a *App) handleUpdateClient(c *gin.Context) {
 		}
 		updates["first_name"] = firstName
 	}
+
 	if req.LastName != nil {
 		lastName := strings.TrimSpace(*req.LastName)
 		if lastName == "" {
@@ -188,6 +199,22 @@ func (a *App) handleUpdateClient(c *gin.Context) {
 		}
 		updates["last_name"] = lastName
 	}
+
+	if req.Phone != nil {
+		phoneInput := strings.TrimSpace(*req.Phone)
+		if phoneInput == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "phone number cannot be empty"})
+			return
+		}
+
+		formattedPhone, err := domain.ValidateAndFormatPhone(phoneInput)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid phone number format"})
+			return
+		}
+		updates["phone"] = formattedPhone
+	}
+
 	if req.Height != nil {
 		updates["height"] = *req.Height
 	}
@@ -197,6 +224,7 @@ func (a *App) handleUpdateClient(c *gin.Context) {
 	if req.Goal != nil {
 		updates["goal"] = *req.Goal
 	}
+
 	incomingUpdatedAt, err := parseOptionalRFC3339(req.UpdatedAt)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})

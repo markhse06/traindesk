@@ -5,6 +5,7 @@ type CreateWorkoutRequest struct {
 	DurationMin int      `json:"duration_min"`
 	Price       float64  `json:"price"`
 	Type        string   `json:"type"`
+	Status      string   `json:"status"`
 	ClientIDs   []string `json:"client_ids"`
 	Notes       string   `json:"notes"`
 	PackageID   *string  `json:"package_id,omitempty"`
@@ -17,7 +18,9 @@ type WorkoutResponse struct {
 	DurationMin int      `json:"duration_min"`
 	Price       float64  `json:"price"`
 	Type        string   `json:"type"`
+	Status      string   `json:"status"`
 	ClientIDs   []string `json:"client_ids"`
+	PackageID   *string  `json:"package_id,omitempty"`
 	Notes       string   `json:"notes"`
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
@@ -28,6 +31,7 @@ type UpdateWorkoutRequest struct {
 	DurationMin *int      `json:"duration_min"`
 	Price       *float64  `json:"price"`
 	Type        *string   `json:"type"`
+	Status      *string   `json:"status"`
 	ClientIDs   *[]string `json:"client_ids"`
 	Notes       *string   `json:"notes"`
 	UpdatedAt   *string   `json:"updated_at,omitempty"`

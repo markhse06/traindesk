@@ -50,6 +50,14 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid updated_at format, use RFC3339"})
 		return
 	}
+	status := domain.WorkoutStatusPlanned
+	if req.Status != "" {
+		if !domain.IsValidStatus(req.Status) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout status"})
+			return
+		}
+		status = domain.WorkoutStatus(req.Status)
+	}
 
 	clientUUIDs := make([]uuid.UUID, 0, len(req.ClientIDs))
 	for _, cidStr := range req.ClientIDs {
@@ -64,6 +72,7 @@ func (a *App) handleCreateWorkout(c *gin.Context) {
 		DateTime:    dateTime,
 		DurationMin: req.DurationMin,
 		Type:        domain.WorkoutType(req.Type),
+		Status:      status,
 		Notes:       req.Notes,
 		Price:       req.Price,
 	}
@@ -195,6 +204,7 @@ func (a *App) handleGetWorkouts(c *gin.Context) {
 			DurationMin: w.DurationMin,
 			Price:       w.Price,
 			Type:        string(w.Type),
+			Status:      string(w.Status),
 			ClientIDs:   clientIDs,
 			Notes:       w.Notes,
 			CreatedAt:   formatAPITime(w.CreatedAt),
@@ -260,6 +270,7 @@ func (a *App) handleGetWorkoutByID(c *gin.Context) {
 		DurationMin: w.DurationMin,
 		Price:       w.Price,
 		Type:        string(w.Type),
+		Status:      string(w.Status),
 		ClientIDs:   clientIDs,
 		Notes:       w.Notes,
 		CreatedAt:   formatAPITime(w.CreatedAt),
@@ -340,6 +351,13 @@ func (a *App) handleUpdateWorkout(c *gin.Context) {
 		}
 		existing.Type = domain.WorkoutType(*req.Type)
 	}
+	if req.Status != nil {
+		if !domain.IsValidStatus(*req.Status) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workout status"})
+			return
+		}
+		existing.Status = domain.WorkoutStatus(*req.Status)
+	}
 
 	if req.Notes != nil {
 		existing.Notes = *req.Notes
@@ -411,6 +429,7 @@ func workoutToResponse(w domain.Workout) DTO.WorkoutResponse {
 		DurationMin: w.DurationMin,
 		Price:       w.Price,
 		Type:        string(w.Type),
+		Status:      string(w.Status),
 		ClientIDs:   clientIDs,
 		Notes:       w.Notes,
 		CreatedAt:   formatAPITime(w.CreatedAt),

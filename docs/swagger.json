@@ -1149,6 +1149,9 @@
                 "price": {
                     "type": "number"
                 },
+                "status": {
+                    "type": "string"
+                },
                 "type": {
                     "type": "string"
                 },
@@ -1413,6 +1416,9 @@
                 },
                 "price": {
                     "type": "number"
+                },
+                "status": {
+                    "type": "string"
                 },
                 "type": {
                     "type": "string"

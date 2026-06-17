@@ -4,6 +4,7 @@ package DTO
 type CreateClientRequest struct {
 	FirstName string  `json:"first_name"`
 	LastName  string  `json:"last_name"`
+	Phone     string  `json:"phone"`
 	Height    float64 `json:"height"`
 	Weight    float64 `json:"weight"`
 	Goal      string  `json:"goal"`
@@ -14,6 +15,7 @@ type CreateClientRequest struct {
 type UpdateClientRequest struct {
 	FirstName *string  `json:"first_name"`
 	LastName  *string  `json:"last_name"`
+	Phone     *string  `json:"phone"`
 	Height    *float64 `json:"height"`
 	Weight    *float64 `json:"weight"`
 	Goal      *string  `json:"goal"`
@@ -27,6 +29,7 @@ type ClientResponse struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 
+	Phone  string  `json:"phone"`
 	Height float64 `json:"height"`
 	Weight float64 `json:"weight"`
 	Goal   string  `json:"goal"`
